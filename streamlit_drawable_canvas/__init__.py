@@ -7,7 +7,9 @@ from hashlib import md5
 import numpy as np
 import streamlit as st
 import streamlit.components.v1 as components
-import streamlit.elements.image as st_image
+import streamlit.elements.lib.image_utils as st_image
+from streamlit.elements.lib.layout_utils import LayoutConfig
+
 from PIL import Image
 
 _RELEASE = True  # on packaging, pass this to True
@@ -47,9 +49,7 @@ def _data_url_to_image(data_url: str) -> Image:
 
 def _resize_img(img: Image, new_height: int = 700, new_width: int = 700) -> Image:
     """Resize the image to the provided resolution."""
-    h_ratio = new_height / img.height
-    w_ratio = new_width / img.width
-    img = img.resize((int(img.width * w_ratio), int(img.height * h_ratio)))
+    img = img.resize((new_width, new_height))
     return img
 
 
@@ -60,8 +60,8 @@ def st_canvas(
     background_color: str = "",
     background_image: Image = None,
     update_streamlit: bool = True,
-    height: int = 400,
-    width: int = 600,
+    height: int = 1080,
+    width: int = 1920,
     drawing_mode: str = "freedraw",
     initial_drawing: dict = None,
     display_toolbar: bool = True,
@@ -120,12 +120,27 @@ def st_canvas(
     # Then override background_color
     background_image_url = None
     if background_image:
-        background_image = _resize_img(background_image, height, width)
+        # background_image = _resize_img(background_image, height, width)
         # Reduce network traffic and cache when switch another configure, use streamlit in-mem filemanager to convert image to URL
-        background_image_url = st_image.image_to_url(
-            background_image, width, True, "RGB", "PNG", f"drawable-canvas-bg-{md5(background_image.tobytes()).hexdigest()}-{key}" 
+
+        layout_config = LayoutConfig(
+            width=background_image.width, height=background_image.height
         )
-        background_image_url = st._config.get_option("server.baseUrlPath") + background_image_url
+
+        background_image_url = st_image.image_to_url(
+            image=background_image,
+            layout_config=layout_config,
+            clamp=True,
+            channels="RGB",
+            output_format="PNG",
+            image_id=f"drawable-canvas-bg-{md5(background_image.tobytes()).hexdigest()}-{key}",
+        )
+
+        base_url_path: str = st._config.get_option("server.baseUrlPath").strip("/")
+        if base_url_path:
+            base_url_path = "/" + base_url_path
+        background_image_url = base_url_path + background_image_url
+
         background_color = ""
 
     # Clean initial drawing, override its background color
